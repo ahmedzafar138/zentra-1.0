@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,11 +9,12 @@ import { supabase } from '@/lib/supabase';
 
 type BlogPost = {
   id: string;
-  title: string; 
+  title: string;
   snippet: string;
   category: string;
   read_time_min: number;
   published_at: string;
+  image_url?: string;
 };
 
 const mockBlogs: BlogPost[] = [
@@ -24,6 +25,7 @@ const mockBlogs: BlogPost[] = [
     category: 'Training',
     read_time_min: 4,
     published_at: '2025-08-10T09:30:00Z',
+    image_url: 'https://images.pexels.com/photos/841130/pexels-photo-841130.jpeg?auto=compress&cs=tinysrgb&w=800',
   },
   {
     id: '2',
@@ -32,6 +34,7 @@ const mockBlogs: BlogPost[] = [
     category: 'Nutrition',
     read_time_min: 5,
     published_at: '2025-08-08T14:20:00Z',
+    image_url: 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=800',
   },
   {
     id: '3',
@@ -40,6 +43,7 @@ const mockBlogs: BlogPost[] = [
     category: 'Recovery',
     read_time_min: 3,
     published_at: '2025-08-05T11:15:00Z',
+    image_url: 'https://images.pexels.com/photos/3822906/pexels-photo-3822906.jpeg?auto=compress&cs=tinysrgb&w=800',
   },
   {
     id: '4',
@@ -48,6 +52,7 @@ const mockBlogs: BlogPost[] = [
     category: 'Training',
     read_time_min: 6,
     published_at: '2025-08-03T16:45:00Z',
+    image_url: 'https://images.pexels.com/photos/703016/pexels-photo-703016.jpeg?auto=compress&cs=tinysrgb&w=800',
   },
 ];
 
@@ -114,6 +119,13 @@ export default function BlogsScreen() {
               activeOpacity={0.8}
               onPress={() => router.push(`/blog/${post.id}`)}
             >
+              {post.image_url && (
+                <Image
+                  source={{ uri: post.image_url }}
+                  style={styles.postImage}
+                  resizeMode="cover"
+                />
+              )}
               <View style={styles.postContent}>
                 <Text style={styles.postTitle} numberOfLines={1}>
                   {post.title}
@@ -176,11 +188,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
-    padding: 20,
+    padding: 12,
     marginBottom: 12,
-    gap: 16,
+    gap: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
+  },
+  postImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
   },
   postContent: {
     flex: 1,
