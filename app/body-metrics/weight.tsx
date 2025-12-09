@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.white,
     marginBottom: 24,
-    textAlign : "center"
+    textAlign: "center"
   },
   unitToggle: {
     flexDirection: 'row',

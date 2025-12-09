@@ -14,10 +14,14 @@ import { ChevronLeft, ChevronDown } from "lucide-react-native";
 import { theme } from "@/constants/theme";
 import PrimaryButton from "@/components/PrimaryButton";
 
-/* ================================
-   SIMPLE DROPDOWN COMPONENT
-================================ */
-function Dropdown({ label, value, setValue, options }) {
+type DropdownProps = {
+  label: string;
+  value: string;
+  setValue: (val: string) => void;
+  options: string[];
+};
+
+function Dropdown({ label, value, setValue, options }: DropdownProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -53,9 +57,6 @@ function Dropdown({ label, value, setValue, options }) {
   );
 }
 
-/* ================================
-         MAIN SCREEN
-================================ */
 export default function MealGeneratorScreen() {
   const router = useRouter();
 
@@ -100,14 +101,13 @@ export default function MealGeneratorScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <Text style={styles.subtitle}>Meal plan catered to your calorie intake.</Text>
 
-          {/* ---- Dropdowns ---- */}
           <View style={styles.controlsRow}>
             <View style={{ flex: 1, marginRight: 8 }}>
               <Dropdown
                 label="Culinary Preference"
                 value={culinaryPreference}
                 setValue={setCulinaryPreference}
-                options={["1", "2", "3", "4", "5"]}
+                options={["Any","Pakistani", "Italian", "Mexican", "Chineese", "American", "Mediterranean", "Thai"]}
               />
             </View>
 
@@ -116,12 +116,11 @@ export default function MealGeneratorScreen() {
                 label="Dietary Preference"
                 value={dietaryPreference}
                 setValue={setDietaryPreference}
-                options={["1", "2", "3", "4", "5"]}
+                options={["None","Vegetarian", "Keto", "Paleo", "High Protien", "Nut Free", "Dairy Free", "Gluten Free"]}
               />
             </View>
           </View>
 
-          {/* ---- Goal Input ---- */}
           <View style={styles.goalContainer}>
             <Text style={styles.controlLabel}>Your Goal</Text>
             <TextInput
@@ -134,7 +133,6 @@ export default function MealGeneratorScreen() {
             />
           </View>
 
-          {/* ---- Preview ---- */}
           <View style={styles.previewSection}>
             <Text style={styles.sectionTitle}>Preview</Text>
             <View style={styles.previewGrid}>
@@ -147,7 +145,6 @@ export default function MealGeneratorScreen() {
             </View>
           </View>
 
-          {/* ---- Totals ---- */}
           <View style={styles.totalsCard}>
             <Text style={styles.totalsTitle}>Daily Totals</Text>
             <View style={styles.totalsRow}>
@@ -213,7 +210,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
 
-  // ---------- Dropdown ----------
   controlLabel: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.white,

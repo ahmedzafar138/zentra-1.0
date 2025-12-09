@@ -12,7 +12,7 @@ type HeightUnit = 'cm' | 'ft-in';
 
 export default function HeightScreen() {
   const [unit, setUnit] = useState<HeightUnit>('cm');
-  const [heightCm, setHeightCm] = useState(173); // always store in cm
+  const [heightCm, setHeightCm] = useState(173);
   const router = useRouter();
 
   const cmToFeet = (cm: number) => {
@@ -47,13 +47,6 @@ export default function HeightScreen() {
     return values;
   }, []);
 
-  const switchUnit = (newUnit: HeightUnit) => {
-    if (unit !== newUnit) {
-      setUnit(newUnit);
-      // heightCm stays the same, picker will map it automatically
-    }
-  };
-
   const handleNext = () => {
     router.push({
       pathname: '/body-metrics/weight',
@@ -74,7 +67,20 @@ export default function HeightScreen() {
       return heightCm - 120;
     } else {
       const index = ftInValues.findIndex((v) => v.cm === heightCm);
-      return index >= 0 ? index : 0;
+      if (index !== -1) return index;
+
+      let closestIndex = 0;
+      let minDiff = Math.abs(ftInValues[0].cm - heightCm);
+
+      for (let i = 1; i < ftInValues.length; i++) {
+        const diff = Math.abs(ftInValues[i].cm - heightCm);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestIndex = i;
+        }
+      }
+
+      return closestIndex;
     }
   };
 
@@ -100,7 +106,7 @@ export default function HeightScreen() {
               <View style={styles.unitToggle}>
                 <TouchableOpacity
                   style={[styles.unitButton, unit === 'cm' && styles.unitButtonActive]}
-                  onPress={() => switchUnit('cm')}
+                  onPress={() => setUnit('cm')}
                 >
                   <Text style={[styles.unitText, unit === 'cm' && styles.unitTextActive]}>
                     cm
@@ -108,7 +114,7 @@ export default function HeightScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.unitButton, unit === 'ft-in' && styles.unitButtonActive]}
-                  onPress={() => switchUnit('ft-in')}
+                  onPress={() => setUnit('ft-in')}
                 >
                   <Text style={[styles.unitText, unit === 'ft-in' && styles.unitTextActive]}>
                     ft-in
