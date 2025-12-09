@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronLeft, Pause, Square, RefreshCw } from 'lucide-react-native';
+import { ChevronLeft, Pause, Square, RefreshCw, Play } from 'lucide-react-native';
 import { theme } from '@/constants/theme';
 
 export default function LiveFormViewScreen() {
@@ -12,7 +12,42 @@ export default function LiveFormViewScreen() {
   const [correctReps, setCorrectReps] = useState(0);
   const [incorrectReps, setIncorrectReps] = useState(0);
   const [time, setTime] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    if (!isPaused) {
+      timerRef.current = setInterval(() => {
+        setTime((prev) => prev + 1);
+      }, 1000);
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [isPaused]);
+
+  const handlePausePlay = () => {
+    setIsPaused(!isPaused);
+  };
+
+  const handleStop = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    router.back();
+  };
+
+  const handleChange = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    router.back();
+    router.back();
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -77,15 +112,19 @@ export default function LiveFormViewScreen() {
           </View>
 
           <View style={styles.controlsRow}>
-            <TouchableOpacity style={styles.controlButton}>
-              <Pause size={24} color={theme.colors.white} />
-              <Text style={styles.controlButtonText}>Pause</Text>
+            <TouchableOpacity style={styles.controlButton} onPress={handlePausePlay}>
+              {isPaused ? (
+                <Play size={24} color={theme.colors.white} />
+              ) : (
+                <Pause size={24} color={theme.colors.white} />
+              )}
+              <Text style={styles.controlButtonText}>{isPaused ? 'Resume' : 'Pause'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.controlButton, styles.primaryControl]}>
+            <TouchableOpacity style={[styles.controlButton, styles.primaryControl]} onPress={handleStop}>
               <Square size={24} color={theme.colors.white} />
               <Text style={styles.controlButtonText}>Finish</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.controlButton}>
+            <TouchableOpacity style={styles.controlButton} onPress={handleChange}>
               <RefreshCw size={24} color={theme.colors.white} />
               <Text style={styles.controlButtonText}>Change</Text>
             </TouchableOpacity>
