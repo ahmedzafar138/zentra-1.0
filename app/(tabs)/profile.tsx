@@ -1,5 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal, ScrollView } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  Modal,
+  ScrollView,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,14 +17,27 @@ import { supabase } from '@/lib/supabase';
 import ScrollPicker from '@/components/ScrollPicker';
 import PrimaryButton from '@/components/PrimaryButton';
 
+type HeightUnit = 'cm' | 'ft-in';
+type WeightUnit = 'kg' | 'lb';
+
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editType, setEditType] = useState<'height' | 'weight' | 'steps' | null>(null);
-  const [tempValue, setTempValue] = useState<number>(0);
-  const [tempUnit, setTempUnit] = useState<string>('');
+
+  const [tempHeight, setTempHeight] = useState(170);
+  const [heightUnit, setHeightUnit] = useState<HeightUnit>('cm');
+
+  const [tempWeight, setTempWeight] = useState(70);
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>('kg');
+
+  const [tempSteps, setTempSteps] = useState(8000);
+
   const router = useRouter();
 
+  /** -------------------
+   * Load Profile + Update BMI
+   * ------------------- */
   useEffect(() => {
     loadProfile();
   }, []);
@@ -30,45 +51,107 @@ export default function ProfileScreen() {
           .select('*')
           .eq('id', user.id)
           .maybeSingle();
+        if (data) {
+          setProfile(data);
+          setTempHeight(data.height_cm || 170);
+          setHeightUnit(data.height_unit || 'cm');
+          setTempWeight(data.weight_kg || 70);
+          setWeightUnit(data.weight_unit || 'kg');
+          setTempSteps(data.steps_goal || 8000);
 
-        setProfile(data);
+          updateBMI(data.height_cm, data.weight_kg, user.id);
+        }
       }
     } catch (error) {
-      console.error('Error loading profile:', error);
+      console.error(error);
     }
+  };
+
+  const calculateBMI = (height_cm: number, weight_kg: number) => {
+    if (!height_cm || !weight_kg) return null;
+    const height_m = height_cm / 100;
+    return +(weight_kg / (height_m * height_m)).toFixed(1);
+  };
+
+  const updateBMI = async (height_cm: number, weight_kg: number, userId: string) => {
+    const bmi = calculateBMI(height_cm, weight_kg);
+    if (!bmi) return;
+    await supabase.from('user_profiles').update({ bmi }).eq('id', userId);
+    setProfile((prev: any) => ({ ...prev, bmi }));
   };
 
   const handleSignOut = async () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            await supabase.auth.signOut();
-            router.replace('/auth');
-          },
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          await supabase.auth.signOut();
+          router.replace('/auth');
         },
-      ]
-    );
+      },
+    ]);
   };
 
-  const openEditModal = (type: 'height' | 'weight' | 'steps') => {
-    setEditType(type);
-    if (type === 'height') {
-      setTempValue(profile?.height_cm || 170);
-      setTempUnit(profile?.height_unit || 'cm');
-    } else if (type === 'weight') {
-      setTempValue(profile?.weight_kg || 70);
-      setTempUnit(profile?.weight_unit || 'kg');
-    } else if (type === 'steps') {
-      setTempValue(profile?.steps_goal || 8000);
-      setTempUnit('');
+  /** -------------------
+   * Picker Helpers
+   * ------------------- */
+  // Height
+  const cmToFeet = (cm: number) => {
+    const inches = Math.round(cm / 2.54);
+    const feet = Math.floor(inches / 12);
+    const remainingInches = inches % 12;
+    return { feet, inches: remainingInches };
+  };
+
+  const feetToCm = (feet: number, inches: number) => {
+    return Math.round((feet * 12 + inches) * 2.54);
+  };
+
+  const cmHeightValues = useMemo(() => Array.from({ length: 101 }, (_, i) => `${120 + i} cm`), []);
+  const ftInHeightValues = useMemo(() => {
+    const vals: { display: string; cm: number }[] = [];
+    for (let feet = 4; feet <= 7; feet++) {
+      for (let inches = 0; inches < 12; inches++) {
+        const cm = feetToCm(feet, inches);
+        if (cm >= 120 && cm <= 220) vals.push({ display: `${feet}'${inches}"`, cm });
+      }
     }
-    setEditModalVisible(true);
+    return vals;
+  }, []);
+
+  const getHeightIndex = () => {
+    return heightUnit === 'cm'
+      ? tempHeight - 120
+      : ftInHeightValues.findIndex((v) => v.cm === tempHeight) || 0;
+  };
+
+  const handleHeightChange = (index: number) => {
+    if (heightUnit === 'cm') setTempHeight(120 + index);
+    else setTempHeight(ftInHeightValues[index].cm);
+  };
+
+  // Weight
+  const kgToLb = (kg: number) => Math.round(kg / 0.453592);
+  const lbToKg = (lb: number) => Math.round(lb * 0.453592);
+
+  const kgWeightValues = useMemo(() => Array.from({ length: 186 }, (_, i) => `${35 + i} kg`), []);
+  const lbWeightValues = useMemo(() => {
+    const vals: { display: string; kg: number }[] = [];
+    for (let i = 80; i <= 485; i++) vals.push({ display: `${i} lb`, kg: lbToKg(i) });
+    return vals;
+  }, []);
+
+  const getWeightIndex = () => {
+    return weightUnit === 'kg'
+      ? tempWeight - 35
+      : lbWeightValues.findIndex((v) => v.kg === tempWeight) || 0;
+  };
+
+  const handleWeightChange = (index: number) => {
+    if (weightUnit === 'kg') setTempWeight(35 + index);
+    else setTempWeight(lbWeightValues[index].kg);
   };
 
   const handleSave = async () => {
@@ -76,91 +159,54 @@ export default function ProfileScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      let updateData: any = {};
-
-      if (editType === 'height') {
-        updateData = {
-          height_cm: tempValue,
-          height_unit: tempUnit,
-        };
-      } else if (editType === 'weight') {
-        updateData = {
-          weight_kg: tempValue,
-          weight_unit: tempUnit,
-        };
-      } else if (editType === 'steps') {
-        updateData = {
-          steps_goal: tempValue,
-        };
-      }
-
       const { error } = await supabase
         .from('user_profiles')
-        .update(updateData)
+        .update({
+          height_cm: tempHeight,
+          height_unit: heightUnit,
+          weight_kg: tempWeight,
+          weight_unit: weightUnit,
+          steps_goal: tempSteps,
+        })
         .eq('id', user.id);
 
       if (error) throw error;
 
+      await updateBMI(tempHeight, tempWeight, user.id);
       setEditModalVisible(false);
       loadProfile();
     } catch (error) {
-      console.error('Error updating profile:', error);
+      console.error(error);
       Alert.alert('Error', 'Failed to update profile');
     }
   };
 
-  const getHeightValues = () => {
-    if (tempUnit === 'cm') {
-      return Array.from({ length: 101 }, (_, i) => `${120 + i} cm`);
-    } else {
-      const values = [];
-      for (let feet = 4; feet <= 7; feet++) {
-        for (let inches = 0; inches < 12; inches++) {
-          values.push(`${feet}'${inches}"`);
-        }
-      }
-      return values;
+  /** -------------------
+   * Open Modal
+   * ------------------- */
+  const openEditModal = (type: 'height' | 'weight' | 'steps') => {
+    setEditType(type);
+    if (type === 'height') {
+      setTempHeight(profile?.height_cm || 170);
+      setHeightUnit(profile?.height_unit || 'cm');
+    } else if (type === 'weight') {
+      setTempWeight(profile?.weight_kg || 70);
+      setWeightUnit(profile?.weight_unit || 'kg');
+    } else if (type === 'steps') {
+      setTempSteps(profile?.steps_goal || 8000);
     }
+    setEditModalVisible(true);
   };
 
-  const getWeightValues = () => {
-    if (tempUnit === 'kg') {
-      return Array.from({ length: 186 }, (_, i) => `${35 + i} kg`);
-    } else {
-      return Array.from({ length: 406 }, (_, i) => `${80 + i} lb`);
-    }
-  };
-
-  const getStepsValues = () => {
-    return Array.from({ length: 191 }, (_, i) => `${(1000 + i * 100).toLocaleString()}`);
-  };
-
-  const getValueIndex = () => {
-    if (editType === 'height') {
-      return tempUnit === 'cm' ? tempValue - 120 : 0;
-    } else if (editType === 'weight') {
-      return tempUnit === 'kg' ? tempValue - 35 : 0;
-    } else if (editType === 'steps') {
-      return Math.floor((tempValue - 1000) / 100);
-    }
-    return 0;
-  };
-
-  const handleValueChange = (index: number) => {
-    if (editType === 'height') {
-      setTempValue(tempUnit === 'cm' ? 120 + index : tempValue);
-    } else if (editType === 'weight') {
-      setTempValue(tempUnit === 'kg' ? 35 + index : tempValue);
-    } else if (editType === 'steps') {
-      setTempValue(1000 + index * 100);
-    }
-  };
+  /** -------------------
+   * Steps
+   * ------------------- */
+  const getStepsValues = () => Array.from({ length: 191 }, (_, i) => `${1000 + i * 100}`);
+  const getStepsIndex = () => Math.floor((tempSteps - 1000) / 100);
+  const handleStepsChange = (index: number) => setTempSteps(1000 + index * 100);
 
   return (
-    <LinearGradient
-      colors={[theme.colors.background, '#0A0A0A']}
-      style={styles.container}
-    >
+    <LinearGradient colors={[theme.colors.background, '#0A0A0A']} style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.avatarContainer}>
@@ -172,6 +218,11 @@ export default function ProfileScreen() {
                 <Text style={styles.name}>
                   {profile.first_name} {profile.last_name}
                 </Text>
+                {profile.bmi && (
+                  <Text style={styles.bmiText}>
+                    BMI: <Text style={styles.bmiValue}>{profile.bmi}</Text>
+                  </Text>
+                )}
               </>
             )}
           </View>
@@ -181,7 +232,9 @@ export default function ProfileScreen() {
               <View style={styles.settingInfo}>
                 <Text style={styles.settingLabel}>Height</Text>
                 <Text style={styles.settingValue}>
-                  {profile?.height_cm ? `${profile.height_cm} cm` : 'Not set'}
+                  {profile?.height_cm
+                    ? `${profile.height_cm} ${profile.height_unit || 'cm'}`
+                    : 'Not set'}
                 </Text>
               </View>
               <ChevronRight size={20} color={theme.colors.secondary} />
@@ -191,7 +244,9 @@ export default function ProfileScreen() {
               <View style={styles.settingInfo}>
                 <Text style={styles.settingLabel}>Weight</Text>
                 <Text style={styles.settingValue}>
-                  {profile?.weight_kg ? `${profile.weight_kg} kg` : 'Not set'}
+                  {profile?.weight_kg
+                    ? `${profile.weight_kg} ${profile.weight_unit || 'kg'}`
+                    : 'Not set'}
                 </Text>
               </View>
               <ChevronRight size={20} color={theme.colors.secondary} />
@@ -201,7 +256,9 @@ export default function ProfileScreen() {
               <View style={styles.settingInfo}>
                 <Text style={styles.settingLabel}>Daily Steps Goal</Text>
                 <Text style={styles.settingValue}>
-                  {profile?.steps_goal ? `${profile.steps_goal.toLocaleString()} steps` : '8000 steps'}
+                  {profile?.steps_goal
+                    ? `${profile.steps_goal.toLocaleString()} steps`
+                    : '8000 steps'}
                 </Text>
               </View>
               <ChevronRight size={20} color={theme.colors.secondary} />
@@ -214,6 +271,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </ScrollView>
 
+        {/* Modal */}
         <Modal
           visible={editModalVisible}
           transparent
@@ -231,36 +289,37 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/* Unit Toggle */}
               {editType !== 'steps' && (
                 <View style={styles.unitToggle}>
                   {editType === 'height' ? (
                     <>
                       <TouchableOpacity
-                        style={[styles.unitButton, tempUnit === 'cm' && styles.unitButtonActive]}
-                        onPress={() => setTempUnit('cm')}
+                        style={[styles.unitButton, heightUnit === 'cm' && styles.unitButtonActive]}
+                        onPress={() => setHeightUnit('cm')}
                       >
-                        <Text style={[styles.unitText, tempUnit === 'cm' && styles.unitTextActive]}>cm</Text>
+                        <Text style={[styles.unitText, heightUnit === 'cm' && styles.unitTextActive]}>cm</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={[styles.unitButton, tempUnit === 'ft-in' && styles.unitButtonActive]}
-                        onPress={() => setTempUnit('ft-in')}
+                        style={[styles.unitButton, heightUnit === 'ft-in' && styles.unitButtonActive]}
+                        onPress={() => setHeightUnit('ft-in')}
                       >
-                        <Text style={[styles.unitText, tempUnit === 'ft-in' && styles.unitTextActive]}>ft-in</Text>
+                        <Text style={[styles.unitText, heightUnit === 'ft-in' && styles.unitTextActive]}>ft-in</Text>
                       </TouchableOpacity>
                     </>
                   ) : (
                     <>
                       <TouchableOpacity
-                        style={[styles.unitButton, tempUnit === 'kg' && styles.unitButtonActive]}
-                        onPress={() => setTempUnit('kg')}
+                        style={[styles.unitButton, weightUnit === 'kg' && styles.unitButtonActive]}
+                        onPress={() => setWeightUnit('kg')}
                       >
-                        <Text style={[styles.unitText, tempUnit === 'kg' && styles.unitTextActive]}>kg</Text>
+                        <Text style={[styles.unitText, weightUnit === 'kg' && styles.unitTextActive]}>kg</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={[styles.unitButton, tempUnit === 'lb' && styles.unitButtonActive]}
-                        onPress={() => setTempUnit('lb')}
+                        style={[styles.unitButton, weightUnit === 'lb' && styles.unitButtonActive]}
+                        onPress={() => setWeightUnit('lb')}
                       >
-                        <Text style={[styles.unitText, tempUnit === 'lb' && styles.unitTextActive]}>lb</Text>
+                        <Text style={[styles.unitText, weightUnit === 'lb' && styles.unitTextActive]}>lb</Text>
                       </TouchableOpacity>
                     </>
                   )}
@@ -270,13 +329,29 @@ export default function ProfileScreen() {
               <ScrollPicker
                 values={
                   editType === 'height'
-                    ? getHeightValues()
+                    ? heightUnit === 'cm'
+                      ? cmHeightValues
+                      : ftInHeightValues.map((v) => v.display)
                     : editType === 'weight'
-                    ? getWeightValues()
+                    ? weightUnit === 'kg'
+                      ? kgWeightValues
+                      : lbWeightValues.map((v) => v.display)
                     : getStepsValues()
                 }
-                selectedIndex={getValueIndex()}
-                onValueChange={handleValueChange}
+                selectedIndex={
+                  editType === 'height'
+                    ? getHeightIndex()
+                    : editType === 'weight'
+                    ? getWeightIndex()
+                    : getStepsIndex()
+                }
+                onValueChange={
+                  editType === 'height'
+                    ? handleHeightChange
+                    : editType === 'weight'
+                    ? handleWeightChange
+                    : handleStepsChange
+                }
               />
 
               <PrimaryButton title="Save" onPress={handleSave} style={styles.saveButton} />
@@ -289,22 +364,10 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 24,
-  },
-  avatarContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
+  container: { flex: 1 },
+  safeArea: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 24 },
+  avatarContainer: { alignItems: 'center', marginBottom: 32 },
   avatar: {
     width: 100,
     height: 100,
@@ -318,11 +381,11 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xl,
     fontWeight: 'bold',
     color: theme.colors.white,
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  settingsContainer: {
-    marginBottom: 32,
-  },
+  bmiText: { fontSize: theme.fontSize.md, color: theme.colors.secondary, marginTop: 4 },
+  bmiValue: { color: theme.colors.primary, fontWeight: 'bold' },
+  settingsContainer: { marginBottom: 32 },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -332,19 +395,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.md,
     marginBottom: 12,
   },
-  settingInfo: {
-    flex: 1,
-  },
-  settingLabel: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '600',
-    color: theme.colors.white,
-    marginBottom: 4,
-  },
-  settingValue: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.secondary,
-  },
+  settingInfo: { flex: 1 },
+  settingLabel: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.white, marginBottom: 4 },
+  settingValue: { fontSize: theme.fontSize.sm, color: theme.colors.secondary },
   signOutButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -354,59 +407,15 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.md,
     gap: 12,
   },
-  signOutText: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '600',
-    color: theme.colors.white,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: theme.colors.card,
-    borderTopLeftRadius: theme.borderRadius.lg,
-    borderTopRightRadius: theme.borderRadius.lg,
-    padding: 24,
-    paddingBottom: 40,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  modalTitle: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: '600',
-    color: theme.colors.white,
-  },
-  unitToggle: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.background,
-    borderRadius: theme.borderRadius.md,
-    padding: 4,
-    marginBottom: 24,
-  },
-  unitButton: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: theme.borderRadius.sm,
-  },
-  unitButtonActive: {
-    backgroundColor: theme.colors.primary,
-  },
-  unitText: {
-    fontSize: theme.fontSize.md,
-    color: theme.colors.secondary,
-    fontWeight: '500',
-  },
-  unitTextActive: {
-    color: theme.colors.white,
-  },
-  saveButton: {
-    marginTop: 24,
-  },
+  signOutText: { fontSize: theme.fontSize.md, fontWeight: '600', color: theme.colors.white },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: theme.colors.card, borderTopLeftRadius: theme.borderRadius.lg, borderTopRightRadius: theme.borderRadius.lg, padding: 24, paddingBottom: 40 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  modalTitle: { fontSize: theme.fontSize.lg, fontWeight: '600', color: theme.colors.white },
+  unitToggle: { flexDirection: 'row', backgroundColor: theme.colors.background, borderRadius: theme.borderRadius.md, padding: 4, marginBottom: 24 },
+  unitButton: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: theme.borderRadius.sm },
+  unitButtonActive: { backgroundColor: theme.colors.primary },
+  unitText: { fontSize: theme.fontSize.md, color: theme.colors.secondary, fontWeight: '500' },
+  unitTextActive: { color: theme.colors.white },
+  saveButton: { marginTop: 24 },
 });

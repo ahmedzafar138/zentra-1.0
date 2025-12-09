@@ -12,7 +12,7 @@ type HeightUnit = 'cm' | 'ft-in';
 
 export default function HeightScreen() {
   const [unit, setUnit] = useState<HeightUnit>('cm');
-  const [heightCm, setHeightCm] = useState(173);
+  const [heightCm, setHeightCm] = useState(173); // always store in cm
   const router = useRouter();
 
   const cmToFeet = (cm: number) => {
@@ -47,6 +47,13 @@ export default function HeightScreen() {
     return values;
   }, []);
 
+  const switchUnit = (newUnit: HeightUnit) => {
+    if (unit !== newUnit) {
+      setUnit(newUnit);
+      // heightCm stays the same, picker will map it automatically
+    }
+  };
+
   const handleNext = () => {
     router.push({
       pathname: '/body-metrics/weight',
@@ -66,7 +73,8 @@ export default function HeightScreen() {
     if (unit === 'cm') {
       return heightCm - 120;
     } else {
-      return ftInValues.findIndex((v) => v.cm === heightCm) || 0;
+      const index = ftInValues.findIndex((v) => v.cm === heightCm);
+      return index >= 0 ? index : 0;
     }
   };
 
@@ -92,7 +100,7 @@ export default function HeightScreen() {
               <View style={styles.unitToggle}>
                 <TouchableOpacity
                   style={[styles.unitButton, unit === 'cm' && styles.unitButtonActive]}
-                  onPress={() => setUnit('cm')}
+                  onPress={() => switchUnit('cm')}
                 >
                   <Text style={[styles.unitText, unit === 'cm' && styles.unitTextActive]}>
                     cm
@@ -100,7 +108,7 @@ export default function HeightScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.unitButton, unit === 'ft-in' && styles.unitButtonActive]}
-                  onPress={() => setUnit('ft-in')}
+                  onPress={() => switchUnit('ft-in')}
                 >
                   <Text style={[styles.unitText, unit === 'ft-in' && styles.unitTextActive]}>
                     ft-in
